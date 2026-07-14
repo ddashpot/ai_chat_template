@@ -26,9 +26,9 @@ export function renderSettings(el) {
         <label class="inline"><input type="radio" name="stor" value="local" ${s.storage==="local"?"checked":""}> ローカル (IndexedDB)</label>
         <label class="inline"><input type="radio" name="stor" value="gdrive" ${s.storage==="gdrive"?"checked":""}> Google ドライブ (appDataFolder)</label>
         <div class="field2">
-          <label>Google OAuth クライアント ID</label>
-          <input id="gid" value="${attr(s.googleClientId)}" placeholder="xxxx.apps.googleusercontent.com">
-          <p class="muted small">Drive を使うには各自の OAuth クライアント ID が必要です。OAuth は http(s) オリジンが必須のため、localhost 等での配信が前提です。</p>
+          ${store.hasRuntimeClientId()
+            ? '<div class="locked-note">Google OAuth クライアント ID はデプロイ設定から適用されています。</div>'
+            : '<label>Google OAuth クライアント ID</label><input id="gid" value="'+attr(s.googleClientId)+'" placeholder="xxxx.apps.googleusercontent.com"><p class="muted small">承認済み JavaScript 生成元に配信元 URL を登録してください。</p>'}
         </div>
       </section>
 
@@ -98,7 +98,7 @@ export function renderSettings(el) {
 
     // storage / gdrive / guardrail
     el.querySelectorAll("[name=stor]").forEach(r => r.onchange = () => store.setStorage(r.value));
-    el.querySelector("#gid").onchange = e => store.updateSettings({ googleClientId: e.target.value.trim() });
+    const gidEl = el.querySelector("#gid"); if (gidEl) gidEl.onchange = e => store.updateSettings({ googleClientId: e.target.value.trim() });
     el.querySelector("#grd").onchange = e => { s.guardrail.enabled = e.target.checked; store.updateSettings({ guardrail: s.guardrail }); };
 
     // backup
