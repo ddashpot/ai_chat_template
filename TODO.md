@@ -9,6 +9,9 @@
 - [x] Google ドライブ(appDataFolder)アダプタ
 - [x] ガードレールのフック枠（no-op）
 - [x] README / PLAN / TODO / FAIL_LOG
+- [x] PWA(マニフェスト/SW/アイコン)・オフライン起動
+- [x] スマホ/PC レスポンシブ(ドロワー)
+- [x] 本番用クライアントID(config.json)・UI 非表示
 
 ## 未了 / 次の作業
 - [ ] Google ドライブ連携の実地テスト（OAuth クライアント ID + localhost 配信）
