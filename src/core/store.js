@@ -4,6 +4,7 @@ import { getAutoKey, deriveKey, encryptJSON, decryptJSON } from "./crypto.js";
 import { LocalAdapter } from "../storage/local-adapter.js";
 import { GDriveAdapter } from "../storage/gdrive-adapter.js";
 import { defaultVault, migrate, makeConversation, makeMessage, makeArtifact } from "./schema.js";
+import { runtimeConfig } from "./runtime-config.js";
 
 class Store {
   constructor() {
@@ -17,8 +18,12 @@ class Store {
   on(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
   emit() { for (const fn of this.listeners) fn(this.vault); }
 
-  adapterFor(kind, clientId) {
-    if (kind === "gdrive") return new GDriveAdapter(clientId || (this.vault?.settings.googleClientId));
+  resolvedGoogleClientId() {
+    return runtimeConfig().googleClientId || (this.vault && this.vault.settings.googleClientId) || "";
+  }
+  hasRuntimeClientId() { return !!runtimeConfig().googleClientId; }
+  adapterFor(kind) {
+    if (kind === "gdrive") return new GDriveAdapter(this.resolvedGoogleClientId());
     return new LocalAdapter();
   }
 
@@ -49,7 +54,7 @@ class Store {
     this.vault = vault;
 
     // 実際の保存先アダプタを確定
-    this.adapter = this.adapterFor(vault.settings.storage, vault.settings.googleClientId);
+    this.adapter = this.adapterFor(vault.settings.storage);
     if (vault.settings.storage === "gdrive") {
       try {
         const remote = await this.adapter.load();
@@ -74,7 +79,7 @@ class Store {
 
   async setStorage(kind) {
     this.vault.settings.storage = kind;
-    this.adapter = this.adapterFor(kind, this.vault.settings.googleClientId);
+    this.adapter = this.adapterFor(kind);
     await this.persist();
     this.emit();
   }
