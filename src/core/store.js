@@ -47,7 +47,7 @@ class Store {
     let env = localEnv;
     let vault;
     if (env) {
-      vault = migrate(await decryptJSON(env, this.key));
+      vault = migrate(await decryptJSON(env, this.key), this.config);
     } else {
       vault = defaultVault(this.config);
     }
@@ -58,7 +58,7 @@ class Store {
     if (vault.settings.storage === "gdrive") {
       try {
         const remote = await this.adapter.load();
-        if (remote) this.vault = migrate(await decryptJSON(remote, this.key));
+        if (remote) this.vault = migrate(await decryptJSON(remote, this.key), this.config);
       } catch (e) { console.warn("Drive 読込スキップ:", e.message); }
     }
     this.emit();
@@ -127,7 +127,7 @@ class Store {
   async removeArtifact(id) { this.vault.artifacts = this.vault.artifacts.filter(a => a.id !== id); await this.persist(); this.emit(); }
 
   exportJSON() { return JSON.stringify(this.vault, null, 2); }
-  async importJSON(text) { this.vault = migrate(JSON.parse(text)); await this.persist(); this.emit(); }
+  async importJSON(text) { this.vault = migrate(JSON.parse(text), this.config); await this.persist(); this.emit(); }
 }
 
 export const store = new Store();

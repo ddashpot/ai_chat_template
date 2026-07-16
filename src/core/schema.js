@@ -1,5 +1,5 @@
 // スキーマ定義とデータモデルのファクトリ。将来のマイグレーションのため schemaVersion を持つ。
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export function uid(prefix = "id") {
   return prefix + "_" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
@@ -62,8 +62,35 @@ export function defaultVault(config) {
   };
 }
 
-// スキーマ移行のフック（今は v1 のみ）。
-export function migrate(vault) {
-  if (!vault.schemaVersion) vault.schemaVersion = SCHEMA_VERSION;
+// スキーマ移行のフック。config を渡すと既定モデルの補完も行う。
+export function migrate(vault, config) {
+  if (!vault.schemaVersion) vault.schemaVersion = 1;
+
+  if (vault.schemaVersion < 2) {
+    // v1→v2: app.config.js の defaultProviders と同じ endpoint を持つ既存接続先の
+    // 認証方式を追従させる（Gateway は raw → bearer に変更された。raw のまま
+    // だと Bearer プレフィックスなしで送られ、ゲートウェイが missing_token を返す）。
+    const defaults = (config && config.defaultProviders) || [];
+    for (const p of vault.providers || []) {
+      const def = defaults.find(d => d.endpoint === p.endpoint);
+      if (def && p.authMode === "raw" && def.authMode !== "raw" && !p.customHeaderName) {
+        p.authMode = def.authMode;
+      }
+    }
+    vault.schemaVersion = 2;
+  }
+
+  // モデル未登録の vault に defaultModels を補完する（バージョン非依存の修復）。
+  if (config && config.defaultModels && (vault.models || []).length === 0 && (vault.providers || []).length > 0) {
+    vault.models = config.defaultModels.map(m => {
+      const prov = vault.providers.find(p => p.name === m.provider) || vault.providers[0];
+      return makeModel({ ...m, providerId: prov ? prov.id : "" });
+    });
+    if (!vault.settings.defaultModelId && vault.models[0]) {
+      const idx = config.defaultModels.findIndex(m => m.isDefault);
+      vault.settings.defaultModelId = (vault.models[idx] || vault.models[0]).id;
+    }
+  }
+
   return vault;
 }

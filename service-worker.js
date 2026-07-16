@@ -1,5 +1,5 @@
 // アプリシェルをキャッシュしてオフライン起動を可能にする。API 呼び出しと config.json はキャッシュしない。
-const CACHE = "chat-playground-v1";
+const CACHE = "chat-playground-v2";
 const SHELL = [
   "./", "./index.html", "./manifest.webmanifest", "./styles/theme.css", "./app.config.js",
   "./src/ui/app.js", "./src/ui/sidebar.js", "./src/ui/chat-view.js", "./src/ui/settings-view.js",
