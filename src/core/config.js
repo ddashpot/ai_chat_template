@@ -5,6 +5,7 @@ const FALLBACK = {
   appName: "Chat Playground",
   theme: "default",
   defaultProviders: [],
+  defaultModels: [],
   defaultSystemPrompts: [],
   features: { streaming: true, artifacts: true, camera: true, gdrive: true },
   artifactAutoExtract: true,

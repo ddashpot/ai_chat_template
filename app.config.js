@@ -7,8 +7,15 @@ export default {
   theme: "default",
 
   // 起動時に用意しておく接続先（利用者が設定画面で編集可）
+  // authMode "bearer": Authorization: Bearer <apiKey> を送る。
+  // apiKey（agk_… のキー）は同梱しない。設定画面から入力すると暗号化保存される。
   defaultProviders: [
-    { name: "Gateway", endpoint: "https://auth-gtw.ddashpot.com/v1/chat/completions", authMode: "raw", apiKey: "" }
+    { name: "Gateway", endpoint: "https://auth-gtw.ddashpot.com/v1/chat/completions", authMode: "bearer", apiKey: "" }
+  ],
+
+  // 起動時に用意しておくモデル（provider は defaultProviders の name を参照）
+  defaultModels: [
+    { name: "Gemini 2.5 Flash", modelString: "google-ai-studio/gemini-2.5-flash", provider: "Gateway", supportsImages: true, isDefault: true }
   ],
 
   // タイトル付きシステムプロンプトの初期プリセット

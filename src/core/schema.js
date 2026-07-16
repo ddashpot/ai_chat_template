@@ -34,19 +34,28 @@ export function makeArtifact({ conversationId = "", type = "code", title = "Arti
 
 // 復号後にメモリで保持する vault の初期形。
 export function defaultVault(config) {
+  const providers = (config && config.defaultProviders) ? config.defaultProviders.map(makeProvider) : [];
+  // defaultModels の provider（name 参照）を生成済み provider の id に解決する
+  const models = (config && config.defaultModels) ? config.defaultModels.map(m => {
+    const prov = providers.find(p => p.name === m.provider) || providers[0];
+    return makeModel({ ...m, providerId: prov ? prov.id : "" });
+  }) : [];
+  const defModel = (config && config.defaultModels)
+    ? models[config.defaultModels.findIndex(m => m.isDefault)] || models[0]
+    : null;
   return {
     schemaVersion: SCHEMA_VERSION,
     settings: {
       storage: (config && config.storageDefault) || "local",
       theme: (config && config.theme) || "default",
-      defaultModelId: "",
+      defaultModelId: defModel ? defModel.id : "",
       defaultSystemPromptId: "",
       googleClientId: "",
       encryptionMode: (config && config.encryptionMode) || "auto", // auto | passphrase
       guardrail: { enabled: false, rules: [] }
     },
-    providers: (config && config.defaultProviders) ? config.defaultProviders.map(makeProvider) : [],
-    models: [],
+    providers,
+    models,
     systemPrompts: (config && config.defaultSystemPrompts) ? config.defaultSystemPrompts.map(makeSystemPrompt) : [],
     conversations: [],
     artifacts: []
