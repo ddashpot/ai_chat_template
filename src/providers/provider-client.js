@@ -9,6 +9,55 @@ function buildHeaders(provider) {
   return h;
 }
 
+// エンドポイントのホスト名だけを取り出す（ステータス表示用）。
+export function endpointHost(endpoint) {
+  try { return new URL(endpoint).host; } catch (e) { return endpoint || ""; }
+}
+
+// トークンを伏せて表示する（先頭 6 文字 + 末尾 2 文字）。
+export function maskKey(key) {
+  if (!key) return "";
+  if (key.length <= 10) return key.slice(0, 2) + "…";
+  return key.slice(0, 6) + "…" + key.slice(-2);
+}
+
+// 接続テスト: 最小のリクエストを 1 回だけ投げて到達性と認証を確かめる。
+// 返り値: { ok, ms, status, message }
+export async function testConnection({ provider, modelString, timeoutMs = 20000 }) {
+  const t0 = performance.now();
+  if (!provider || !provider.endpoint) return { ok: false, message: "エンドポイントが空です" };
+  if (!modelString) return { ok: false, message: "model 文字列が空です" };
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), timeoutMs);
+  try {
+    const res = await fetch(provider.endpoint, {
+      method: "POST",
+      headers: buildHeaders(provider),
+      body: JSON.stringify({ model: modelString, messages: [{ role: "user", content: "ping" }], max_tokens: 1 }),
+      signal: ac.signal
+    });
+    const ms = Math.round(performance.now() - t0);
+    if (!res.ok) {
+      const body = (await res.text()).slice(0, 160);
+      return { ok: false, ms, status: res.status, message: httpHint(res.status) + " (HTTP " + res.status + ") " + body };
+    }
+    await res.json().catch(() => ({}));
+    return { ok: true, ms, status: res.status, message: "接続できました (" + ms + "ms)" };
+  } catch (e) {
+    const ms = Math.round(performance.now() - t0);
+    if (e.name === "AbortError") return { ok: false, ms, message: "タイムアウトしました" };
+    return { ok: false, ms, message: "到達できません: " + e.message + " — URL の綴りか CORS 許可を確認してください" };
+  } finally { clearTimeout(timer); }
+}
+
+function httpHint(status) {
+  if (status === 401 || status === 403) return "トークンが拒否されました";
+  if (status === 404) return "エンドポイントのパスが違います";
+  if (status === 429) return "レート制限に達しています";
+  if (status >= 500) return "ゲートウェイ側のエラーです";
+  return "リクエストが拒否されました";
+}
+
 // messages: [{role, content}] content は string または parts 配列（画像込み）。
 export async function chat({ provider, modelString, messages, stream = true, params = {}, onToken, signal }) {
   if (!provider || !provider.endpoint) throw new Error("接続先が未設定です");
