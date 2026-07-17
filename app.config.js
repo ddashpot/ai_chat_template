@@ -8,9 +8,12 @@ export default {
 
   // 起動時に用意しておく接続先（利用者が設定画面で編集可）
   // authMode "bearer": Authorization: Bearer <apiKey> を送る。
-  // apiKey（agk_… のキー）は同梱しない。設定画面から入力すると暗号化保存される。
+  // エンドポイントとトークン（apiKey）はどちらも同梱せず、利用者が設定画面で入力する。
+  // 入力例:
+  //   エンドポイント: https://auth-gtw.ddashpot.com/v1/chat/completions
+  //   トークン(apiKey): agk_… のキー（暗号化して保存される）
   defaultProviders: [
-    { name: "Gateway", endpoint: "https://auth-gtw.ddashpot.com/v1/chat/completions", authMode: "bearer", apiKey: "" }
+    { name: "Gateway", endpoint: "", authMode: "bearer", apiKey: "" }
   ],
 
   // 起動時に用意しておくモデル（provider は defaultProviders の name を参照）

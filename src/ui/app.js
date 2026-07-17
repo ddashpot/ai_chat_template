@@ -62,9 +62,10 @@ async function boot() {
   $("scrim").onclick = () => openDrawer(false);
   $("settingsBtn").onclick = () => onNav("settings");
 
-  // 接続先/モデル未設定、または初回起動で API キー未入力なら設定画面へ誘導
-  const needsKey = store.vault.conversations.length === 0 && store.vault.providers.some(p => !p.apiKey);
-  if (store.vault.providers.length === 0 || store.vault.models.length === 0 || needsKey) ctx.view = "settings";
+  // 接続先/モデル未設定、または初回起動でエンドポイント/トークン未入力なら設定画面へ誘導
+  const needsSetup = store.vault.conversations.length === 0
+    && store.vault.providers.some(p => !p.endpoint || !p.apiKey);
+  if (store.vault.providers.length === 0 || store.vault.models.length === 0 || needsSetup) ctx.view = "settings";
   else { const c = store.vault.conversations[0] || store.newConversation(); ctx.activeConvId = c.id; }
 
   refreshAll();
