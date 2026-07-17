@@ -7,6 +7,8 @@ const FALLBACK = {
   defaultProviders: [],
   defaultModels: [],
   defaultSystemPrompts: [],
+  examples: {},
+  starters: [],
   features: { streaming: true, artifacts: true, camera: true, gdrive: true },
   artifactAutoExtract: true,
   encryptionMode: "auto",
