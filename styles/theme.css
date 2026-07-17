@@ -100,6 +100,8 @@ label.inline{display:inline-flex;align-items:center;gap:6px;font-size:13px;margi
 .art-meta{display:flex;align-items:center;gap:10px;margin-bottom:8px}
 .art-meta .muted{flex:1}
 .locked-note{font-size:13px;color:var(--muted);padding:8px 10px;background:#F3F4F8;border-radius:9px}
+.setup-note{font-size:13px;line-height:1.6;color:var(--ink);padding:12px 14px;margin-bottom:16px;background:var(--accent-soft);border:1px solid var(--accent);border-radius:10px}
+.setup-note code{font-family:var(--f-mono);font-size:12px}
 
 /* ============ MOBILE ============ */
 @media (max-width:820px){

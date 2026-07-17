@@ -12,15 +12,16 @@ ChatGPT / Gemini 風 UI のマルチプロバイダ・チャットアプリ（PW
 - PWA: インストール可・オフライン起動
 - ガードレール機構（枠のみ・未実装）
 
-## 初期設定（既定の接続先・モデル）
-テンプレートには次の接続先とモデルが最初から登録されています（`app.config.js` で変更可）。
+## 初期設定（エンドポイント・トークンは利用者が入力）
+テンプレートには接続先の枠（認証方式: Bearer）とモデル `google-ai-studio/gemini-2.5-flash`（画像入力対応）が
+登録されていますが、**エンドポイントとトークン（API キー）はどちらも同梱していません**。初回起動時に
+設定画面が開くので、利用者が次の2つを入力してください（`app.config.js` で既定値を変更可）。
 
-- 接続先: `https://auth-gtw.ddashpot.com/v1/chat/completions`（認証方式: Bearer）
-- モデル: `google-ai-studio/gemini-2.5-flash`（画像入力対応）
+- エンドポイント: 例 `https://auth-gtw.ddashpot.com/v1/chat/completions`
+- トークン（API キー）: 例 `agk_…`
 
-API キー（`agk_…`）はリポジトリに含めていません。初回起動時に設定画面が開くので、
-Gateway 接続先の「API キー」欄に入力してください。キーは暗号化されて保存され、
-リクエスト時に `Authorization: Bearer <キー>` として送信されます。
+入力したトークンは暗号化されて保存され、リクエスト時に `Authorization: Bearer <キー>` として
+入力されたエンドポイントへ送信されます。
 
 送信されるリクエストは次の呼び出しと等価です:
 ```js

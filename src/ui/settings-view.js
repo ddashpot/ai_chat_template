@@ -5,9 +5,15 @@ export function renderSettings(el) {
   const draw = () => {
     const v = store.vault;
     const s = v.settings;
+    const needsSetup = v.providers.some(p => !p.endpoint || !p.apiKey);
     el.innerHTML = `
     <div class="panel">
       <div class="panel-head"><h2>設定</h2></div>
+
+      ${needsSetup ? `<div class="setup-note">
+        利用を開始するには、接続先の <strong>エンドポイント</strong> と <strong>トークン（API キー）</strong> を入力してください。<br>
+        例) エンドポイント: <code>https://auth-gtw.ddashpot.com/v1/chat/completions</code> ／ トークン: <code>agk_…</code>
+      </div>` : ""}
 
       <section class="sect">
         <h3>接続先（プロバイダ）</h3>
@@ -56,7 +62,7 @@ export function renderSettings(el) {
     pl.innerHTML = v.providers.map(p => `
       <div class="row-card">
         <input class="pv-name" data-id="${p.id}" value="${attr(p.name)}" placeholder="名前">
-        <input class="pv-ep" data-id="${p.id}" value="${attr(p.endpoint)}" placeholder="Endpoint">
+        <input class="pv-ep" data-id="${p.id}" value="${attr(p.endpoint)}" placeholder="エンドポイント (例: https://auth-gtw.ddashpot.com/v1/chat/completions)">
         <div class="grid2">
           <select class="pv-auth" data-id="${p.id}">
             <option value="raw" ${p.authMode==="raw"?"selected":""}>Authorization 直入れ (Bearer なし)</option>
@@ -65,7 +71,7 @@ export function renderSettings(el) {
           </select>
           <input class="pv-hdr" data-id="${p.id}" value="${attr(p.customHeaderName)}" placeholder="ヘッダ名(custom時)">
         </div>
-        <input class="pv-key" data-id="${p.id}" type="password" value="${attr(p.apiKey)}" placeholder="API キー / トークン">
+        <input class="pv-key" data-id="${p.id}" type="password" value="${attr(p.apiKey)}" placeholder="トークン / API キー (例: agk_…)">
         <div class="row-actions"><button class="btn danger" data-delp="${p.id}">削除</button></div>
       </div>`).join("") || '<p class="muted">接続先がありません</p>';
     bind(pl, ".pv-name", "name"); bind(pl, ".pv-ep", "endpoint");
@@ -118,7 +124,7 @@ export function renderSettings(el) {
     root.querySelectorAll(sel).forEach(i => i.onchange = () => store[method](i.dataset.id, { [field]: i.value }));
   }
   draw();
-  el.querySelector("#addProv").onclick = async () => { await store.addProvider(makeProvider({ name: "新規接続先", endpoint: "https://auth-gtw.ddashpot.com/v1/chat/completions" })); draw(); };
+  el.querySelector("#addProv").onclick = async () => { await store.addProvider(makeProvider({ name: "新規接続先", authMode: "bearer" })); draw(); };
   el.querySelector("#addModel").onclick = async () => {
     const pid = store.vault.providers[0]?.id || "";
     await store.addModel(makeModel({ name: "新規モデル", providerId: pid }));
