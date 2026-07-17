@@ -6,19 +6,30 @@ export default {
   appName: "Chat Playground",
   theme: "default",
 
-  // 起動時に用意しておく接続先（利用者が設定画面で編集可）
+  // 起動時に用意しておく接続先の枠（利用者が設定画面で編集する）。
   // authMode "bearer": Authorization: Bearer <apiKey> を送る。
-  // エンドポイントとトークン（apiKey）はどちらも同梱せず、利用者が設定画面で入力する。
-  // 入力例:
-  //   エンドポイント: https://auth-gtw.ddashpot.com/v1/chat/completions
-  //   トークン(apiKey): agk_… のキー（暗号化して保存される）
+  // endpoint と apiKey は同梱しない。初回起動のセットアップ画面で利用者が入力する。
   defaultProviders: [
     { name: "Gateway", endpoint: "", authMode: "bearer", apiKey: "" }
   ],
 
-  // 起動時に用意しておくモデル（provider は defaultProviders の name を参照）
+  // 起動時に用意しておくモデルの枠（provider は defaultProviders の name を参照）
   defaultModels: [
-    { name: "Gemini 2.5 Flash", modelString: "google-ai-studio/gemini-2.5-flash", provider: "Gateway", supportsImages: true, isDefault: true }
+    { name: "Gemini 2.5 Flash", modelString: "", provider: "Gateway", supportsImages: true, isDefault: true }
+  ],
+
+  // セットアップ画面と設定画面のプレースホルダに出す入力例（値そのものは保存しない）
+  examples: {
+    endpoint: "https://auth-gtw.ddashpot.com/v1/chat/completions",
+    apiKey: "agk_…",
+    modelString: "google-ai-studio/gemini-2.5-flash"
+  },
+
+  // 空のチャットに出す送信例
+  starters: [
+    "こんにちは",
+    "この画像に何が写っているか教えて",
+    "このコードのバグを直して"
   ],
 
   // タイトル付きシステムプロンプトの初期プリセット
