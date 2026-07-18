@@ -67,5 +67,13 @@ export function defaultVault(config) {
 export function migrate(vault) {
   if (!vault.schemaVersion) vault.schemaVersion = SCHEMA_VERSION;
   if (vault.settings && vault.settings.webSearch === undefined) vault.settings.webSearch = false;
+  // ブローカー発行キー(agk_/apk_)を raw で保存している接続先を Bearer に補正する。
+  // これらのキーはゲートウェイ側で Authorization: Bearer 以外だと必ず 401 missing_token に
+  // なるため、raw のままでは決して通らない。取り違えを起動時に自動で直す。
+  if (Array.isArray(vault.providers)) {
+    for (const p of vault.providers) {
+      if (p && p.authMode === "raw" && /^(agk|apk)_/.test(p.apiKey || "")) p.authMode = "bearer";
+    }
+  }
   return vault;
 }
