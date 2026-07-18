@@ -121,6 +121,18 @@ button,input,textarea,select{font-family:inherit}
 .msg-body code{font-family:var(--f-mono);font-size:.86em;background:var(--line-2);padding:1px 5px;border-radius:5px}
 .msg.user .msg-body code{background:rgba(255,255,255,.18)}
 .msg-img{max-width:170px;border-radius:10px;margin:6px 0 0;border:1px solid var(--line);display:block}
+.msg-meta{font-family:var(--f-mono);font-size:10px;color:var(--muted);text-align:right;margin-top:6px}
+
+/* Web検索トグルと参照ソース */
+.ws-toggle{font-size:13px;padding:6px 13px;border:1px solid var(--line);border-radius:999px;
+  background:var(--surface);color:var(--ink-2);cursor:pointer}
+.ws-toggle:hover{border-color:var(--pine-line)}
+.ws-toggle.on{border-color:var(--pine-line);background:var(--pine-soft);color:var(--pine-deep)}
+.sources{margin-top:10px;padding-top:8px;border-top:1px dashed var(--line);font-size:12px;color:var(--muted)}
+.sources .src-head{margin-bottom:4px;font-family:var(--f-mono);font-size:11px}
+.sources a{display:block;color:var(--pine-deep);text-decoration:none;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap;padding:1px 0}
+.sources a:hover{text-decoration:underline}
 .typing{display:inline-block;width:7px;height:15px;background:var(--pine);vertical-align:-2px;animation:blink 1s steps(2) infinite}
 @keyframes blink{50%{opacity:0}}
 

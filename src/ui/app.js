@@ -1,5 +1,6 @@
 import { store } from "../core/store.js";
 import { getConfig } from "../core/config.js";
+import { makeProvider, makeModel, makeSystemPrompt } from "../core/schema.js";
 import { loadRuntimeConfig } from "../core/runtime-config.js";
 import { renderSidebar } from "./sidebar.js";
 import { renderChat } from "./chat-view.js";
@@ -46,7 +47,7 @@ function drawStatusbar() {
     <span class="st-sep">/</span>
     <span class="st-chip">${esc(model ? model.modelString : "モデル未設定")}</span>
     <span class="st-sep">/</span>
-    <span class="st-chip" title="認証方式">${p.authMode === "bearer" ? "Bearer " : ""}${esc(maskKey(p.apiKey) || "トークン未設定")}</span>
+    <span class="st-chip" title="認証方式">${p.authMode === "bearer" ? "Bearer " : p.authMode === "public" ? "App " : ""}${esc(maskKey(p.apiKey) || "トークン未設定")}</span>
     <span class="st-spacer"></span>
     <button class="st-act" id="stEdit">接続を編集</button>`;
   $("stEdit").onclick = () => onNav("settings");
@@ -81,6 +82,37 @@ function needsSetup() {
   return !p || !p.endpoint || !p.apiKey || !store.vault.models.some(m => m.modelString);
 }
 
+// ---- URL ハッシュからのプリフィル（ゲートウェイ管理画面からの遷移用） ----
+// 例: /#token=agk_xxx&model=openai/gpt-4o-mini
+//     /#mode=public&appId=app_xxx&endpoint=https://…/v1/chat/completions
+// ハッシュはサーバへ送られないため、トークンを載せても通信上は漏れない。
+// 反映後はハッシュを消す（履歴や共有時にトークンが残らないように）。
+async function applyHash() {
+  if (!location.hash || location.hash.length < 2) return;
+  const p = new URLSearchParams(location.hash.slice(1));
+  if (!["endpoint", "token", "appId", "model", "mode", "system"].some(k => p.has(k))) return;
+
+  const v = store.vault;
+  if (v.providers.length === 0) v.providers.push(makeProvider({ name: "Gateway", authMode: "bearer" }));
+  const prov = v.providers[0];
+  if (v.models.length === 0) v.models.push(makeModel({ name: "モデル", providerId: prov.id, supportsImages: true }));
+  const model = v.models.find(m => m.providerId === prov.id) || v.models[0];
+
+  if (p.has("endpoint")) prov.endpoint = p.get("endpoint");
+  if (p.has("model")) { model.modelString = p.get("model"); if (!v.settings.defaultModelId) v.settings.defaultModelId = model.id; }
+  if (p.has("token")) { prov.apiKey = p.get("token"); prov.authMode = p.get("mode") || "bearer"; }
+  else if (p.has("appId")) { prov.apiKey = p.get("appId"); prov.authMode = p.get("mode") || "public"; }
+  else if (p.has("mode")) prov.authMode = p.get("mode");
+  if (p.has("system") && p.get("system")) {
+    const sp = makeSystemPrompt({ title: "リンクから設定", body: p.get("system") });
+    v.systemPrompts.push(sp);
+    v.settings.defaultSystemPromptId = sp.id;
+  }
+
+  history.replaceState(null, "", location.pathname + location.search);
+  await store.persist();
+}
+
 async function boot() {
   const cfg = getConfig();
   $("appName").textContent = cfg.appName;
@@ -98,6 +130,8 @@ async function boot() {
       + '<p class="small muted">保存データを復号できない場合は、ブラウザのサイトデータを削除すると初期状態から再開できます。</p></div></div>';
     return;
   }
+
+  await applyHash();
 
   $("menuBtn").onclick = () => openDrawer(!$("drawer").classList.contains("open"));
   $("scrim").onclick = () => openDrawer(false);

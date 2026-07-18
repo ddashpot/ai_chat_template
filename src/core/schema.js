@@ -52,7 +52,8 @@ export function defaultVault(config) {
       defaultSystemPromptId: "",
       googleClientId: "",
       encryptionMode: (config && config.encryptionMode) || "auto", // auto | passphrase
-      guardrail: { enabled: false, rules: [] }
+      guardrail: { enabled: false, rules: [] },
+      webSearch: false // Web検索（Google検索グラウンディング）。gemini 系モデルのみ有効
     },
     providers,
     models,
@@ -65,5 +66,6 @@ export function defaultVault(config) {
 // スキーマ移行のフック（今は v1 のみ）。
 export function migrate(vault) {
   if (!vault.schemaVersion) vault.schemaVersion = SCHEMA_VERSION;
+  if (vault.settings && vault.settings.webSearch === undefined) vault.settings.webSearch = false;
   return vault;
 }

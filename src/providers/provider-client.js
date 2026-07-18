@@ -1,9 +1,11 @@
 // OpenAI 互換 /v1/chat/completions クライアント。ストリーミング対応（非対応時はフォールバック）。
+// Web検索（grounding）時のみ Gemini ネイティブ経路（…:generateContent）へ切り替える。
 function buildHeaders(provider) {
   const h = { "Content-Type": "application/json" };
   const mode = provider.authMode || "raw";
   if (!provider.apiKey) return h;
   if (mode === "bearer") h["Authorization"] = "Bearer " + provider.apiKey;
+  else if (mode === "public") h["X-Broker-App"] = provider.apiKey; // 公開アプリ（アプリIDを送る）
   else if (mode === "custom" && provider.customHeaderName) h[provider.customHeaderName] = provider.apiKey;
   else h["Authorization"] = provider.apiKey; // raw（既定）
   return h;
@@ -117,4 +119,122 @@ export function buildUserContent(text, imageDataUrls) {
   if (text) parts.push({ type: "text", text });
   for (const url of imageDataUrls) parts.push({ type: "image_url", image_url: { url } });
   return parts;
+}
+
+// ============================================================
+//  Web検索（Google検索グラウンディング）: Gemini ネイティブ経路
+//  google-ai-studio/gemini 系モデル専用。/v1/… のエンドポイントから
+//  ベース URL を推定し …/v1/google-ai-studio/v1beta/models/<model>:generateContent へ送る。
+// ============================================================
+
+// grounding を使えるモデルか（google-ai-studio/gemini 系のみ）。
+export function supportsGrounding(modelString) {
+  return /gemini/i.test((modelString || "").replace(/^google-ai-studio\//, ""));
+}
+
+function geminiTarget(endpoint, modelString, stream) {
+  const bare = (modelString || "").replace(/^google-ai-studio\//, "");
+  let base;
+  try {
+    const u = new URL(endpoint);
+    const i = u.pathname.indexOf("/v1/");
+    base = u.origin + (i >= 0 ? u.pathname.slice(0, i) : "");
+  } catch (e) { throw new Error("エンドポイント URL を解釈できません: " + endpoint); }
+  const method = stream ? "streamGenerateContent" : "generateContent";
+  return base + "/v1/google-ai-studio/v1beta/models/" + encodeURIComponent(bare) + ":" + method;
+}
+
+// OpenAI 形式の messages を Gemini ネイティブの contents へ変換。
+// role: assistant→model / それ以外→user。画像 dataURL は inline_data に変換する。
+function toGeminiContents(messages) {
+  return messages.filter(m => m.role !== "system").map(m => {
+    const parts = [];
+    if (typeof m.content === "string") {
+      if (m.content) parts.push({ text: m.content });
+    } else if (Array.isArray(m.content)) {
+      for (const p of m.content) {
+        if (p.type === "text" && p.text) parts.push({ text: p.text });
+        else if (p.type === "image_url" && p.image_url && p.image_url.url) {
+          const mt = /^data:([^;]+);base64,(.*)$/.exec(p.image_url.url);
+          if (mt) parts.push({ inline_data: { mime_type: mt[1], data: mt[2] } });
+        }
+      }
+    }
+    if (parts.length === 0) parts.push({ text: "" });
+    return { role: m.role === "assistant" ? "model" : "user", parts };
+  });
+}
+
+// Web検索付きチャット。返り値: { text, grounding }
+// grounding = { queries: string[], sources: [{title, uri}] } または null（検索が行われなかった場合）。
+export async function chatGrounded({ provider, modelString, messages, stream = true, onToken, signal }) {
+  if (!provider || !provider.endpoint) throw new Error("接続先が未設定です");
+  if (!supportsGrounding(modelString)) throw new Error("Web検索は google-ai-studio/gemini 系モデルのみ対応です");
+
+  const target = geminiTarget(provider.endpoint, modelString, stream);
+  const body = { contents: toGeminiContents(messages), tools: [{ google_search: {} }] };
+  const sys = messages.find(m => m.role === "system");
+  if (sys && sys.content) body.systemInstruction = { parts: [{ text: String(sys.content) }] };
+
+  const res = await fetch(target, {
+    method: "POST",
+    headers: buildHeaders(provider),
+    body: JSON.stringify(body),
+    signal
+  });
+  if (!res.ok) throw new Error("HTTP " + res.status + ": " + (await res.text()));
+
+  let text = "";
+  let gm = null;
+  if (stream && res.body && (res.headers.get("content-type") || "").includes("text/event-stream")) {
+    await readGeminiStream(res,
+      (delta) => { text += delta; if (onToken) onToken(delta); },
+      (g) => { gm = g; });
+  } else {
+    const data = await res.json();
+    // 非ストリーム時は単一オブジェクト、alt=sse でない配列応答のこともある
+    const cands = Array.isArray(data) ? data.flatMap(d => d.candidates || []) : (data.candidates || []);
+    text = cands.map(c => (c.content?.parts || []).map(p => p?.text).filter(Boolean).join("")).join("");
+    gm = cands.map(c => c && c.groundingMetadata).find(Boolean) || null;
+    if (onToken && text) onToken(text);
+  }
+  return { text, grounding: normalizeGrounding(gm) };
+}
+
+// Gemini ネイティブ SSE を読む。[DONE] 番兵は無い。groundingMetadata は途中チャンクに載る。
+async function readGeminiStream(res, onDelta, onGrounding) {
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop();
+    for (const line of lines) {
+      const t = line.trim();
+      if (!t.startsWith("data:")) continue;
+      try {
+        const obj = JSON.parse(t.slice(5).trim());
+        const parts = obj.candidates?.[0]?.content?.parts;
+        if (parts) {
+          const txt = parts.map(p => p?.text).filter(Boolean).join("");
+          if (txt) onDelta(txt);
+        }
+        const g = obj.candidates?.map(c => c && c.groundingMetadata).find(Boolean);
+        if (g) onGrounding(g);
+      } catch (e) { /* 部分行は無視 */ }
+    }
+  }
+}
+
+// groundingMetadata を保存用の最小形に整える。
+function normalizeGrounding(gm) {
+  if (!gm) return null;
+  const queries = Array.isArray(gm.webSearchQueries) ? gm.webSearchQueries : [];
+  const sources = (Array.isArray(gm.groundingChunks) ? gm.groundingChunks : [])
+    .map(c => c && c.web).filter(Boolean)
+    .map(w => ({ title: w.title || "", uri: w.uri || "" }));
+  return { queries, sources };
 }
