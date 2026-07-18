@@ -1,5 +1,5 @@
 // アプリシェルをキャッシュしてオフライン起動を可能にする。API 呼び出しと config.json はキャッシュしない。
-const CACHE = "chat-playground-v2";
+const CACHE = "chat-playground-v3";
 const SHELL = [
   "./", "./index.html", "./manifest.webmanifest", "./styles/theme.css", "./app.config.js",
   "./src/ui/app.js", "./src/ui/sidebar.js", "./src/ui/onboarding-view.js", "./src/ui/toast.js", "./src/ui/chat-view.js", "./src/ui/settings-view.js",
@@ -22,6 +22,10 @@ self.addEventListener("activate", (e) => {
   );
 });
 
+// ネットワーク優先（network-first）: オンラインなら常に最新のアプリコードを取得し、
+// 取得できたものでキャッシュを更新する。オフライン時のみキャッシュへフォールバックする。
+// cache-first だと、JS を更新しても CACHE 名を変えない限り古い版が永続配信され、
+// 「サーバは新しいのにブラウザは旧コードのまま」という不整合が起きるため network-first にする。
 self.addEventListener("fetch", (e) => {
   const req = e.request;
   const url = new URL(req.url);
@@ -29,15 +33,11 @@ self.addEventListener("fetch", (e) => {
   if (url.origin !== self.location.origin) return; // 外部（プロバイダ/Google）は素通し
   if (url.pathname.endsWith("/config.json")) return;
 
-  if (req.mode === "navigate") {
-    e.respondWith(fetch(req).catch(() => caches.match("./index.html")));
-    return;
-  }
   e.respondWith(
-    caches.match(req).then((hit) => hit || fetch(req).then((res) => {
+    fetch(req).then((res) => {
       const copy = res.clone();
       caches.open(CACHE).then((c) => c.put(req, copy));
       return res;
-    }).catch(() => hit))
+    }).catch(() => caches.match(req).then((hit) => hit || (req.mode === "navigate" ? caches.match("./index.html") : undefined)))
   );
 });
