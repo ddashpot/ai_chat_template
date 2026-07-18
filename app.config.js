@@ -38,7 +38,9 @@ export default {
   ],
 
   // 機能フラグ
-  features: { streaming: true, artifacts: true, camera: true, gdrive: true },
+  // webSearch: Web検索（Google検索グラウンディング）。google-ai-studio/gemini 系モデル +
+  //            Gemini ネイティブ経路（…/v1/google-ai-studio/v1beta/models/…）を持つゲートウェイが必要。
+  features: { streaming: true, artifacts: true, camera: true, gdrive: true, webSearch: true },
 
   // アシスタント出力からコード等を自動でアーティファクト化するか
   artifactAutoExtract: true,

@@ -83,6 +83,7 @@ export function renderSettings(el, ctx) {
             <select class="pv-auth" data-id="${p.id}">
               <option value="bearer" ${p.authMode === "bearer" ? "selected" : ""}>Authorization: Bearer &lt;トークン&gt;</option>
               <option value="raw" ${p.authMode === "raw" ? "selected" : ""}>Authorization: &lt;トークン&gt;</option>
+              <option value="public" ${p.authMode === "public" ? "selected" : ""}>X-Broker-App: &lt;アプリID&gt;（公開アプリ）</option>
               <option value="custom" ${p.authMode === "custom" ? "selected" : ""}>独自ヘッダ</option>
             </select></div>
           <div class="field"><label>ヘッダ名（独自の場合）</label>

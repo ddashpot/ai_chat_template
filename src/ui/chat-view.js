@@ -1,5 +1,5 @@
 import { store } from "../core/store.js";
-import { chat, buildUserContent } from "../providers/provider-client.js";
+import { chat, chatGrounded, buildUserContent, supportsGrounding } from "../providers/provider-client.js";
 import { preSend, postReceive } from "../guardrails/guardrail.js";
 import { renderMarkdown } from "./markdown.js";
 import { getConfig } from "../core/config.js";
@@ -25,6 +25,8 @@ export function renderChat(el, ctx) {
           <option value="">プロンプトなし</option>
           ${v.systemPrompts.map(p => `<option value="${p.id}" ${conv && conv.systemPromptId === p.id ? "selected" : ""}>${esc(p.title)}</option>`).join("")}
         </select>
+        ${cfg.features.webSearch ? `<button id="wsBtn" class="ws-toggle ${v.settings.webSearch ? "on" : ""}"
+          title="Web検索（Google検索グラウンディング）。gemini 系モデルのみ" aria-pressed="${v.settings.webSearch ? "true" : "false"}">🔍 Web検索</button>` : ""}
       </div>
       <div id="thread" class="thread"></div>
       <div class="composer">
@@ -83,6 +85,24 @@ export function renderChat(el, ctx) {
 
   el.querySelector("#modelSel").onchange = e => { if (conv) { conv.modelId = e.target.value; store.persist(); } };
   el.querySelector("#spSel").onchange = e => { if (conv) { conv.systemPromptId = e.target.value; store.persist(); } };
+
+  // ---- Web検索トグル ----
+  const wsBtn = el.querySelector("#wsBtn");
+  if (wsBtn) wsBtn.onclick = async () => {
+    const next = !store.vault.settings.webSearch;
+    if (next) {
+      const c = store.getConversation(ctx.activeConvId);
+      const model = store.vault.models.find(m => m.id === (c && c.modelId)) || store.vault.models[0];
+      if (model && model.modelString && !supportsGrounding(model.modelString)) {
+        toast("Web検索は google-ai-studio/gemini 系モデルのみ対応です", "error");
+        return;
+      }
+    }
+    await store.updateSettings({ webSearch: next });
+    wsBtn.classList.toggle("on", next);
+    wsBtn.setAttribute("aria-pressed", next ? "true" : "false");
+    toast(next ? "Web検索をオンにしました。応答下に参照ソースが表示されます" : "Web検索をオフにしました");
+  };
 
   // ---- 画像添付 ----
   const fileInput = el.querySelector("#file");
@@ -148,6 +168,13 @@ export function renderChat(el, ctx) {
     if (!text && images.length === 0) return;
     if (images.length && !model.supportsImages) { toast("このモデルは画像に対応していません", "error"); return; }
 
+    // Web検索は Gemini ネイティブ経路専用。非対応モデルなら送信前に止める。
+    const useWebSearch = !!(cfg.features.webSearch && store.vault.settings.webSearch);
+    if (useWebSearch && !supportsGrounding(model.modelString)) {
+      toast("Web検索は google-ai-studio/gemini 系モデルのみ対応です。モデルを変えるか Web検索をオフにしてください", "error", 5200);
+      return;
+    }
+
     const pre = await preSend(text, store.vault.settings.guardrail);
     if (!pre.allowed) { toast("ガードレールが送信を止めました", "error"); return; }
 
@@ -171,15 +198,29 @@ export function renderChat(el, ctx) {
     sendBtn.onclick = () => { if (abort) abort.abort(); };
     ctx.setStatus("wait");
 
+    const t0 = performance.now();
     try {
-      const full = await chat({
-        provider, modelString: model.modelString, messages: apiMessages,
-        stream: cfg.features.streaming, params: model.params || {},
-        signal: abort.signal,
-        onToken: (t) => { assistant.content += t; drawThread(); }
-      });
+      let full;
+      if (useWebSearch) {
+        const r = await chatGrounded({
+          provider, modelString: model.modelString, messages: apiMessages,
+          stream: cfg.features.streaming,
+          signal: abort.signal,
+          onToken: (t) => { assistant.content += t; drawThread(); }
+        });
+        full = r.text;
+        assistant.grounding = r.grounding; // {queries, sources} 検索なしなら null
+      } else {
+        full = await chat({
+          provider, modelString: model.modelString, messages: apiMessages,
+          stream: cfg.features.streaming, params: model.params || {},
+          signal: abort.signal,
+          onToken: (t) => { assistant.content += t; drawThread(); }
+        });
+      }
       const post = await postReceive(full || assistant.content, store.vault.settings.guardrail);
       assistant.content = post.text;
+      assistant.meta = { ms: Math.round(performance.now() - t0), webSearch: useWebSearch };
       if (cfg.artifactAutoExtract) autoExtract(assistant.content, c);
       c.updatedAt = new Date().toISOString();
       ctx.setStatus("ok");
@@ -237,7 +278,26 @@ function msgHtml(m) {
   }
   return `<div class="msg ${isUser ? "user" : "assistant"}">
     <div class="msg-role">${isUser ? "You" : "Assistant"}</div>
-    <div class="msg-body">${inner}</div></div>`;
+    <div class="msg-body">${inner}${isUser ? "" : sourcesHtml(m) + metaHtml(m)}</div></div>`;
+}
+
+// Web検索の参照ソース（検索クエリ + 上位 5 件のリンク）。
+function sourcesHtml(m) {
+  const g = m.grounding;
+  if (!g || (!g.queries.length && !g.sources.length)) return "";
+  const links = g.sources.slice(0, 5).map((s, i) =>
+    `<a href="${attr(s.uri)}" target="_blank" rel="noopener noreferrer">${i + 1}. ${esc(s.title || s.uri || "source")}</a>`).join("");
+  return `<div class="sources">
+    <div class="src-head">🔍 Web検索: ${esc(g.queries.join(" / ") || "(クエリ非公開)")} — ${g.sources.length} 件のソース</div>
+    ${links}</div>`;
+}
+
+// 応答メタ（応答時間・検索有無）。
+function metaHtml(m) {
+  if (!m.meta) return "";
+  let t = m.meta.ms + " ms";
+  if (m.meta.webSearch) t += m.grounding ? " · 🔍検索あり" : " · 🔍検索なし";
+  return `<div class="msg-meta">${esc(t)}</div>`;
 }
 function esc(s){return (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
 function attr(s){return (s||"").replace(/&/g,"&amp;").replace(/"/g,"&quot;");}
