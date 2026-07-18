@@ -3,11 +3,21 @@
 function buildHeaders(provider) {
   const h = { "Content-Type": "application/json" };
   const mode = provider.authMode || "raw";
-  if (!provider.apiKey) return h;
-  if (mode === "bearer") h["Authorization"] = "Bearer " + provider.apiKey;
-  else if (mode === "public") h["X-Broker-App"] = provider.apiKey; // 公開アプリ（アプリIDを送る）
-  else if (mode === "custom" && provider.customHeaderName) h[provider.customHeaderName] = provider.apiKey;
-  else h["Authorization"] = provider.apiKey; // raw（既定）
+  const key = provider.apiKey;
+  if (!key) return h;
+  // ブローカー発行キー(agk_/apk_)は Authorization: Bearer 以外だとゲートウェイで必ず
+  // 401 missing_token になる。認証方式が raw のままでも Bearer で送るよう自動補正する
+  // （public/custom を明示している場合はユーザーの意図を尊重してそのまま）。
+  const isBrokerKey = /^(agk|apk)_/.test(key);
+  if (mode === "bearer" || (isBrokerKey && mode !== "public" && mode !== "custom")) {
+    h["Authorization"] = "Bearer " + key;
+  } else if (mode === "public") {
+    h["X-Broker-App"] = key; // 公開アプリ（アプリIDを送る）
+  } else if (mode === "custom" && provider.customHeaderName) {
+    h[provider.customHeaderName] = key;
+  } else {
+    h["Authorization"] = key; // raw（非ブローカーキー）
+  }
   return h;
 }
 
